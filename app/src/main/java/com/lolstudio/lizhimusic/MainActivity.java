@@ -185,13 +185,32 @@ public class MainActivity extends Activity {
         findViewById(R.id.btnExit).setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                startAction(MusicService.ACTION_EXIT);
-                finishAndRemoveTask();
+                exitApp();
             }
         });
 
         // 启动服务并触发"打开即自动播放"
         startService(new Intent(this, MusicService.class).setAction(MusicService.ACTION_ENSURE));
+    }
+
+    /** 彻底退出：停止本地服务 + 结束全部Activity（含在线曲库页） + 杀进程，保证音乐停止 */
+    private void exitApp() {
+        startService(new Intent(this, MusicService.class).setAction(MusicService.ACTION_EXIT));
+        if (mBound) {
+            try {
+                unbindService(mConn);
+            } catch (Exception ignored) {
+            }
+            mBound = false;
+            mService = null;
+        }
+        finishAffinity();
+        android.os.Process.killProcess(android.os.Process.myPid());
+    }
+
+    @Override
+    public void onBackPressed() {
+        exitApp();
     }
 
     private void startAction(String action) {
