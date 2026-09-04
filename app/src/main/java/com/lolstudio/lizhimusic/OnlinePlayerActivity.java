@@ -135,6 +135,16 @@ public class OnlinePlayerActivity extends Activity
                 finish();
             }
         });
+        findViewById(R.id.btnOnlineExit).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                releasePlayer();
+                startService(new Intent(OnlinePlayerActivity.this, MusicService.class)
+                        .setAction(MusicService.ACTION_EXIT));
+                finishAffinity();
+                android.os.Process.killProcess(android.os.Process.myPid());
+            }
+        });
 
         tvAlbum.setText("共 " + mNames.size() + " 首 · 在线流播");
         tvStatus.setText("选择右侧歌曲开始播放");
