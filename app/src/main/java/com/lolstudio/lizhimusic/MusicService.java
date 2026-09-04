@@ -77,7 +77,7 @@ public class MusicService extends Service {
         public void onReceive(Context context, Intent intent) {
             if (!Intent.ACTION_MEDIA_BUTTON.equals(intent.getAction())) return;
             android.view.KeyEvent ev =
-                    intent.getParcelableExtra(android.view.KeyEvent.EXTRA_KEY_EVENT);
+                    intent.getParcelableExtra(Intent.EXTRA_KEY_EVENT);
             if (ev == null || ev.getAction() != android.view.KeyEvent.ACTION_DOWN) return;
             switch (ev.getKeyCode()) {
                 case android.view.KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE:
