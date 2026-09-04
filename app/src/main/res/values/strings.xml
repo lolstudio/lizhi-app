@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">李志音乐</string>
+    <string name="artist">李志</string>
+    <string name="initializing">正在加载曲库…</string>
+    <string name="exit">退出</string>
+    <string name="repeat">循环</string>
+    <string name="shuffle">随机</string>
+    <string name="now_playing">正在播放</string>
+    <string name="paused">已暂停</string>
+</resources>
