@@ -47,12 +47,19 @@ public class MusicService extends Service {
     public static final String EXTRA_MSG = "msg";
     public static final String EXTRA_INDEX_REQ = "index_req";
 
-    /** 曲目显示名，与 assets/songs/trackNN.mp3 一一对应 */
+    /** 曲目显示名，与 TRACK_FILES 按下标一一对应 */
     public static final String[] TRACK_NAMES = {
-            "米店", "关于郑州的记忆", "你离开了南京，从此没有人和我说话", "热河",
-            "杭州", "山阴路的夏天", "梵高先生", "墙上的向日葵", "广场", "定西",
-            "结婚", "忽然", "尽头", "人民不需要自由", "和你在一起", "妈妈",
-            "天空之城", "这个世界会好吗"
+            "天空之城", "关于郑州的记忆", "山阴路的夏天", "梵高先生", "热河",
+            "和你在一起", "这个世界会好吗", "米店", "定西", "忽然",
+            "墙上的向日葵", "杭州", "结婚", "尽头", "人民不需要自由",
+            "你离开了南京，从此没有人和我说话", "广场", "妈妈"
+    };
+
+    public static final String[] TRACK_FILES = {
+            "track17.mp3", "track02.mp3", "track06.mp3", "track07.mp3", "track04.mp3",
+            "track15.mp3", "track18.mp3", "track01.mp3", "track10.mp3", "track12.mp3",
+            "track08.mp3", "track05.mp3", "track11.mp3", "track13.mp3", "track14.mp3",
+            "track03.mp3", "track09.mp3", "track16.mp3"
     };
 
     private static final String CHANNEL_ID = "lizhi_play";
@@ -184,7 +191,7 @@ public class MusicService extends Service {
                         AssetManager am = getAssets();
                         mFiles.clear();
                         for (int i = 0; i < TRACK_NAMES.length; i++) {
-                            String name = String.format("track%02d.mp3", i + 1);
+                            String name = TRACK_FILES[i];
                             File out = new File(dir, name);
                             if (!out.exists() || out.length() <= 0) {
                                 copy(am, "songs/" + name, out);
@@ -197,7 +204,7 @@ public class MusicService extends Service {
                     } else {
                         mFiles.clear();
                         for (int i = 0; i < TRACK_NAMES.length; i++) {
-                            File out = new File(dir, String.format("track%02d.mp3", i + 1));
+                            File out = new File(dir, TRACK_FILES[i]);
                             if (out.exists() && out.length() > 0) mFiles.add(out);
                         }
                     }
