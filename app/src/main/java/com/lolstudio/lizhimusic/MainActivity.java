@@ -6,7 +6,6 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.content.ServiceConnection;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
@@ -176,6 +175,12 @@ public class MainActivity extends Activity {
                 refreshModes();
             }
         });
+        findViewById(R.id.btnOnline).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                startActivity(new Intent(MainActivity.this, OnlinePlayerActivity.class));
+            }
+        });
         findViewById(R.id.btnExit).setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -184,7 +189,7 @@ public class MainActivity extends Activity {
             }
         });
 
-        // 启动服务并触发“打开即自动播放”
+        // 启动服务并触发"打开即自动播放"
         startService(new Intent(this, MusicService.class).setAction(MusicService.ACTION_ENSURE));
     }
 
