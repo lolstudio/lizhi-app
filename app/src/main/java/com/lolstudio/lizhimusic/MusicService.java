@@ -12,11 +12,14 @@ import android.content.IntentFilter;
 import android.content.res.AssetManager;
 import android.media.AudioManager;
 import android.media.MediaPlayer;
+import android.media.session.MediaSession;
+import android.media.session.PlaybackState;
 import android.os.Binder;
 import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
+import android.view.KeyEvent;
 import android.widget.Toast;
 
 import java.io.File;
@@ -78,6 +81,7 @@ public class MusicService extends Service {
     private final Random mRandom = new Random();
     private AudioManager mAudio;
     private NotificationManager mNM;
+    private MediaSession mSession;
 
     private final BroadcastReceiver mMediaKeyReceiver = new BroadcastReceiver() {
         @Override
@@ -117,6 +121,7 @@ public class MusicService extends Service {
         super.onCreate();
         mNM = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
         mAudio = (AudioManager) getSystemService(AUDIO_SERVICE);
+        setupMediaSession();
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannel ch = new NotificationChannel(
                     CHANNEL_ID, getString(R.string.app_name), NotificationManager.IMPORTANCE_LOW);
@@ -165,6 +170,14 @@ public class MusicService extends Service {
         try {
             unregisterReceiver(mMediaKeyReceiver);
         } catch (Exception ignored) {
+        }
+        if (mSession != null) {
+            try {
+                mSession.setActive(false);
+                mSession.release();
+            } catch (Exception ignored) {
+            }
+            mSession = null;
         }
         releasePlayer();
     }
@@ -265,6 +278,7 @@ public class MusicService extends Service {
                     mp.start();
                     broadcastState("playing", null);
                     updateNotification(true);
+                    updateSessionState();
                 }
             });
             mPlayer.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
@@ -283,6 +297,7 @@ public class MusicService extends Service {
                     broadcastState("error", "无法播放《" + TRACK_NAMES[mIndex] + "》");
                     releasePlayer();
                     updateNotification(false);
+                    updateSessionState();
                     return true;
                 }
             });
@@ -305,11 +320,13 @@ public class MusicService extends Service {
             mPlayer.pause();
             broadcastState("paused", null);
             updateNotification(false);
+            updateSessionState();
         } else {
             requestFocus();
             mPlayer.start();
             broadcastState("playing", null);
             updateNotification(true);
+            updateSessionState();
         }
     }
 
@@ -397,6 +414,91 @@ public class MusicService extends Service {
 
     public boolean isRepeatOne() {
         return mRepeatOne;
+    }
+
+    // ---------------- 方控：MediaSession（车机方向盘按键标准路由） ----------------
+
+    private void setupMediaSession() {
+        try {
+            mSession = new MediaSession(this, "lizhi-music");
+            mSession.setCallback(new MediaSession.Callback() {
+                @Override
+                public boolean onMediaButtonEvent(Intent mediaButtonIntent) {
+                    KeyEvent ev = mediaButtonIntent == null
+                            ? null : (KeyEvent) mediaButtonIntent.getParcelableExtra(Intent.EXTRA_KEY_EVENT);
+                    if (ev != null && ev.getAction() == KeyEvent.ACTION_DOWN
+                            && handleMediaKey(ev.getKeyCode())) return true;
+                    return super.onMediaButtonEvent(mediaButtonIntent);
+                }
+
+                @Override
+                public void onPlay() {
+                    if (!isPlaying()) playPause();
+                }
+
+                @Override
+                public void onPause() {
+                    if (isPlaying()) playPause();
+                }
+
+                @Override
+                public void onSkipToNext() {
+                    next();
+                }
+
+                @Override
+                public void onSkipToPrevious() {
+                    prev();
+                }
+            });
+            mSession.setFlags(MediaSession.FLAG_HANDLES_MEDIA_BUTTONS
+                    | MediaSession.FLAG_HANDLES_TRANSPORT_CONTROLS);
+            mSession.setActive(true);
+            updateSessionState();
+        } catch (Exception e) {
+            mSession = null;
+        }
+    }
+
+    /** 统一处理媒体按键（方控），返回是否消费 */
+    private boolean handleMediaKey(int keyCode) {
+        switch (keyCode) {
+            case KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE:
+            case KeyEvent.KEYCODE_HEADSETHOOK:
+                playPause();
+                return true;
+            case KeyEvent.KEYCODE_MEDIA_PLAY:
+                if (!isPlaying()) playPause();
+                return true;
+            case KeyEvent.KEYCODE_MEDIA_PAUSE:
+                if (isPlaying()) playPause();
+                return true;
+            case KeyEvent.KEYCODE_MEDIA_NEXT:
+            case KeyEvent.KEYCODE_MEDIA_FAST_FORWARD:
+                next();
+                return true;
+            case KeyEvent.KEYCODE_MEDIA_PREVIOUS:
+            case KeyEvent.KEYCODE_MEDIA_REWIND:
+                prev();
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    private void updateSessionState() {
+        if (mSession == null) return;
+        try {
+            boolean playing = isPlaying();
+            PlaybackState.Builder b = new PlaybackState.Builder()
+                    .setActions(PlaybackState.ACTION_PLAY | PlaybackState.ACTION_PAUSE
+                            | PlaybackState.ACTION_PLAY_PAUSE | PlaybackState.ACTION_SKIP_TO_NEXT
+                            | PlaybackState.ACTION_SKIP_TO_PREVIOUS)
+                    .setState(playing ? PlaybackState.STATE_PLAYING : PlaybackState.STATE_PAUSED,
+                            getPosition(), playing ? 1f : 0f);
+            mSession.setPlaybackState(b.build());
+        } catch (Exception ignored) {
+        }
     }
 
     // ---------------- 退出 ----------------
