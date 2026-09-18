@@ -11,6 +11,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
+import android.view.KeyEvent;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.AdapterView;
@@ -220,6 +221,34 @@ public class MainActivity extends Activity {
         } else {
             startService(new Intent(this, MusicService.class).setAction(action));
         }
+    }
+
+    /** 车机方控兜底：部分ROM直接把媒体按键发给前台Activity（MediaSession路由不生效时） */
+    @Override
+    public boolean onKeyDown(int keyCode, KeyEvent event) {
+        if (event.getAction() == KeyEvent.ACTION_DOWN) {
+            switch (keyCode) {
+                case KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE:
+                case KeyEvent.KEYCODE_HEADSETHOOK:
+                    if (mBound) mService.playPause();
+                    return true;
+                case KeyEvent.KEYCODE_MEDIA_PLAY:
+                    if (mBound && !mService.isPlaying()) mService.playPause();
+                    return true;
+                case KeyEvent.KEYCODE_MEDIA_PAUSE:
+                    if (mBound && mService.isPlaying()) mService.playPause();
+                    return true;
+                case KeyEvent.KEYCODE_MEDIA_NEXT:
+                case KeyEvent.KEYCODE_MEDIA_FAST_FORWARD:
+                    startAction(MusicService.ACTION_NEXT);
+                    return true;
+                case KeyEvent.KEYCODE_MEDIA_PREVIOUS:
+                case KeyEvent.KEYCODE_MEDIA_REWIND:
+                    startAction(MusicService.ACTION_PREV);
+                    return true;
+            }
+        }
+        return super.onKeyDown(keyCode, event);
     }
 
     @Override
