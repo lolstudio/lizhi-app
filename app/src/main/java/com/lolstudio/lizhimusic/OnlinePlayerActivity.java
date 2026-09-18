@@ -4,6 +4,8 @@ import android.app.Activity;
 import android.content.Intent;
 import android.media.AudioManager;
 import android.media.MediaPlayer;
+import android.media.session.MediaSession;
+import android.media.session.PlaybackState;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -11,6 +13,7 @@ import android.text.SpannableStringBuilder;
 import android.text.Spanned;
 import android.text.style.ForegroundColorSpan;
 import android.text.style.RelativeSizeSpan;
+import android.view.KeyEvent;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.AdapterView;
@@ -54,6 +57,7 @@ public class OnlinePlayerActivity extends Activity
     private ImageButton btnPlay;
     private ListView listSongs;
     private BaseAdapter adapter;
+    private MediaSession mSession;
 
     private final Handler mHandler = new Handler(Looper.getMainLooper());
 
@@ -149,6 +153,7 @@ public class OnlinePlayerActivity extends Activity
 
         tvAlbum.setText("共 " + mNames.size() + " 首 · 在线流播");
         tvStatus.setText("选择右侧歌曲开始播放");
+        setupMediaSession();
         mHandler.post(mTicker);
     }
 
@@ -209,6 +214,7 @@ public class OnlinePlayerActivity extends Activity
         btnPlay.setImageResource(android.R.drawable.ic_media_pause);
         listSongs.setSelection(index);
         adapter.notifyDataSetChanged();
+        updateSessionState();
     }
 
     private void togglePlay() {
@@ -220,10 +226,12 @@ public class OnlinePlayerActivity extends Activity
             mPlayer.pause();
             tvStatus.setText("已暂停");
             btnPlay.setImageResource(android.R.drawable.ic_media_play);
+            updateSessionState();
         } else {
             mPlayer.start();
             tvStatus.setText("正在播放");
             btnPlay.setImageResource(android.R.drawable.ic_media_pause);
+            updateSessionState();
         }
     }
 
@@ -262,6 +270,7 @@ public class OnlinePlayerActivity extends Activity
             btnPlay.setImageResource(android.R.drawable.ic_media_pause);
         }
         updateProgress();
+        updateSessionState();
     }
 
     @Override
@@ -275,6 +284,7 @@ public class OnlinePlayerActivity extends Activity
         btnPlay.setImageResource(android.R.drawable.ic_media_play);
         Toast.makeText(this, "播放失败（网络或格式问题）", Toast.LENGTH_SHORT).show();
         mPrepared = false;
+        updateSessionState();
         return true;
     }
 
@@ -283,10 +293,110 @@ public class OnlinePlayerActivity extends Activity
         seekBar.setSecondaryProgress(seekBar.getMax() * percent / 100);
     }
 
+    // ---------------- 方控：MediaSession + 按键兜底 ----------------
+
+    private void setupMediaSession() {
+        try {
+            mSession = new MediaSession(this, "lizhi-online");
+            mSession.setCallback(new MediaSession.Callback() {
+                @Override
+                public boolean onMediaButtonEvent(Intent mediaButtonIntent) {
+                    KeyEvent ev = mediaButtonIntent == null
+                            ? null : (KeyEvent) mediaButtonIntent.getParcelableExtra(Intent.EXTRA_KEY_EVENT);
+                    if (ev != null && ev.getAction() == KeyEvent.ACTION_DOWN
+                            && handleMediaKey(ev.getKeyCode())) return true;
+                    return super.onMediaButtonEvent(mediaButtonIntent);
+                }
+
+                @Override
+                public void onPlay() {
+                    if (mPlayer == null || !mPrepared || !mPlayer.isPlaying()) togglePlay();
+                }
+
+                @Override
+                public void onPause() {
+                    if (mPlayer != null && mPrepared && mPlayer.isPlaying()) togglePlay();
+                }
+
+                @Override
+                public void onSkipToNext() {
+                    playAt((mIndex + 1) % mNames.size());
+                }
+
+                @Override
+                public void onSkipToPrevious() {
+                    playAt(mIndex <= 0 ? mNames.size() - 1 : mIndex - 1);
+                }
+            });
+            mSession.setFlags(MediaSession.FLAG_HANDLES_MEDIA_BUTTONS
+                    | MediaSession.FLAG_HANDLES_TRANSPORT_CONTROLS);
+            mSession.setActive(true);
+            updateSessionState();
+        } catch (Exception e) {
+            mSession = null;
+        }
+    }
+
+    /** 统一处理媒体按键（方控），返回是否消费 */
+    private boolean handleMediaKey(int keyCode) {
+        switch (keyCode) {
+            case KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE:
+            case KeyEvent.KEYCODE_HEADSETHOOK:
+                togglePlay();
+                return true;
+            case KeyEvent.KEYCODE_MEDIA_PLAY:
+                if (mPlayer == null || !mPrepared || !mPlayer.isPlaying()) togglePlay();
+                return true;
+            case KeyEvent.KEYCODE_MEDIA_PAUSE:
+                if (mPlayer != null && mPrepared && mPlayer.isPlaying()) togglePlay();
+                return true;
+            case KeyEvent.KEYCODE_MEDIA_NEXT:
+            case KeyEvent.KEYCODE_MEDIA_FAST_FORWARD:
+                playAt((mIndex + 1) % mNames.size());
+                return true;
+            case KeyEvent.KEYCODE_MEDIA_PREVIOUS:
+            case KeyEvent.KEYCODE_MEDIA_REWIND:
+                playAt(mIndex <= 0 ? mNames.size() - 1 : mIndex - 1);
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    private void updateSessionState() {
+        if (mSession == null) return;
+        try {
+            boolean playing = mPlayer != null && mPrepared && mPlayer.isPlaying();
+            PlaybackState.Builder b = new PlaybackState.Builder()
+                    .setActions(PlaybackState.ACTION_PLAY | PlaybackState.ACTION_PAUSE
+                            | PlaybackState.ACTION_PLAY_PAUSE | PlaybackState.ACTION_SKIP_TO_NEXT
+                            | PlaybackState.ACTION_SKIP_TO_PREVIOUS)
+                    .setState(playing ? PlaybackState.STATE_PLAYING : PlaybackState.STATE_PAUSED,
+                            mPrepared ? mPlayer.getCurrentPosition() : 0,
+                            playing ? 1f : 0f);
+            mSession.setPlaybackState(b.build());
+        } catch (Exception ignored) {
+        }
+    }
+
+    @Override
+    public boolean onKeyDown(int keyCode, KeyEvent event) {
+        if (event.getAction() == KeyEvent.ACTION_DOWN && handleMediaKey(keyCode)) return true;
+        return super.onKeyDown(keyCode, event);
+    }
+
     @Override
     protected void onDestroy() {
         super.onDestroy();
         mHandler.removeCallbacks(mTicker);
+        if (mSession != null) {
+            try {
+                mSession.setActive(false);
+                mSession.release();
+            } catch (Exception ignored) {
+            }
+            mSession = null;
+        }
         releasePlayer();
     }
 
